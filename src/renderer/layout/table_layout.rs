@@ -2536,10 +2536,20 @@ impl LayoutEngine {
                     self.calc_nested_controls_bottom_height(&cell.paragraphs, styles);
                 let wrap_object_bottom =
                     self.calc_cell_wrap_objects_bottom_height(&cell.paragraphs);
-                composed_height
-                    .max(vpos_height)
-                    .max(nested_bottom)
-                    .max(wrap_object_bottom)
+                // 저장 line-seg vpos 가 중첩 표를 포함한 콘텐츠 바닥(>= nested 측정 바닥)을 반영하면
+                // 이를 권위로 사용한다. composed_height 는 vpos 로 이미 배치된 중첩 표 높이를 문단
+                // 높이에 다시 합산(이중 계산)해 과대 계산하므로, 중앙/하단 정렬 기준 높이에서는
+                // 배제한다 — 안 그러면 콘텐츠가 셀을 가득 채운 것으로 오판되어 중앙 정렬이 죽는다
+                // (중첩 표가 든 자리차지 표의 큰 valign=Center 셀). vpos 가 중첩 표를 과소 반영하는
+                // 경우(#44 계열)는 종전대로 측정 기반 max 로 보강한다.
+                if nested_bottom > 0.0 && vpos_height > 0.0 && vpos_height + 0.5 >= nested_bottom {
+                    vpos_height.max(wrap_object_bottom)
+                } else {
+                    composed_height
+                        .max(vpos_height)
+                        .max(nested_bottom)
+                        .max(wrap_object_bottom)
+                }
             };
 
             // 수직 정렬 (분할 표에서는 Top 강제 — 보이는 영역이 전체 셀보다 작음)
