@@ -3086,6 +3086,7 @@ impl DocumentCore {
                                     para_index: pi,
                                     control_index: ci,
                                     source_section_index: idx,
+                                    table_path: Vec::new(),
                                 };
                                 match h.apply_to {
                                     HFA::Both => {
@@ -3105,6 +3106,7 @@ impl DocumentCore {
                                     para_index: pi,
                                     control_index: ci,
                                     source_section_index: idx,
+                                    table_path: Vec::new(),
                                 };
                                 match f.apply_to {
                                     HFA::Both => {
@@ -3237,6 +3239,7 @@ impl DocumentCore {
                                     para_index: pi,
                                     control_index: ci,
                                     source_section_index: idx,
+                                    table_path: Vec::new(),
                                 };
                                 match h.apply_to {
                                     HFA::Both => sec_h_both = Some(r),
@@ -3249,11 +3252,33 @@ impl DocumentCore {
                                     para_index: pi,
                                     control_index: ci,
                                     source_section_index: idx,
+                                    table_path: Vec::new(),
                                 };
                                 match f.apply_to {
                                     HFA::Both => sec_f_both = Some(r),
                                     HFA::Even => sec_f_even = Some(r),
                                     HFA::Odd => sec_f_odd = Some(r),
+                                }
+                            }
+                            Control::Table(table) => {
+                                let mut nested = Vec::new();
+                                crate::renderer::pagination::collect_nested_header_footer_controls(
+                                    table,
+                                    pi,
+                                    idx,
+                                    ci,
+                                    &[],
+                                    &mut nested,
+                                );
+                                for (_, r, is_header, apply) in nested {
+                                    match (is_header, apply) {
+                                        (true, HFA::Both) => sec_h_both = Some(r),
+                                        (true, HFA::Even) => sec_h_even = Some(r),
+                                        (true, HFA::Odd) => sec_h_odd = Some(r),
+                                        (false, HFA::Both) => sec_f_both = Some(r),
+                                        (false, HFA::Even) => sec_f_even = Some(r),
+                                        (false, HFA::Odd) => sec_f_odd = Some(r),
+                                    }
                                 }
                             }
                             _ => {}
@@ -3335,22 +3360,23 @@ impl DocumentCore {
                         } else {
                             // pagination에서 할당된 머리말의 apply_to가 현재 페이지 홀짝과 맞지 않으면 교체
                             if let Some(ref hdr_ref) = page.active_header {
-                                if let Some(para) = section.paragraphs.get(hdr_ref.para_index) {
-                                    if let Some(Control::Header(h)) =
-                                        para.controls.get(hdr_ref.control_index)
-                                    {
-                                        let correct = match h.apply_to {
-                                            HFA::Both => true,
-                                            HFA::Odd => is_odd,
-                                            HFA::Even => !is_odd,
+                                if let Some(Control::Header(h)) =
+                                    crate::renderer::pagination::resolve_header_footer_control(
+                                        &section.paragraphs,
+                                        hdr_ref,
+                                    )
+                                {
+                                    let correct = match h.apply_to {
+                                        HFA::Both => true,
+                                        HFA::Odd => is_odd,
+                                        HFA::Even => !is_odd,
+                                    };
+                                    if !correct {
+                                        page.active_header = if is_odd {
+                                            sec_h_odd.clone().or_else(|| sec_h_both.clone())
+                                        } else {
+                                            sec_h_even.clone().or_else(|| sec_h_both.clone())
                                         };
-                                        if !correct {
-                                            page.active_header = if is_odd {
-                                                sec_h_odd.clone().or_else(|| sec_h_both.clone())
-                                            } else {
-                                                sec_h_even.clone().or_else(|| sec_h_both.clone())
-                                            };
-                                        }
                                     }
                                 }
                             }
@@ -3363,22 +3389,23 @@ impl DocumentCore {
                             };
                         } else {
                             if let Some(ref ftr_ref) = page.active_footer {
-                                if let Some(para) = section.paragraphs.get(ftr_ref.para_index) {
-                                    if let Some(Control::Footer(f)) =
-                                        para.controls.get(ftr_ref.control_index)
-                                    {
-                                        let correct = match f.apply_to {
-                                            HFA::Both => true,
-                                            HFA::Odd => is_odd,
-                                            HFA::Even => !is_odd,
+                                if let Some(Control::Footer(f)) =
+                                    crate::renderer::pagination::resolve_header_footer_control(
+                                        &section.paragraphs,
+                                        ftr_ref,
+                                    )
+                                {
+                                    let correct = match f.apply_to {
+                                        HFA::Both => true,
+                                        HFA::Odd => is_odd,
+                                        HFA::Even => !is_odd,
+                                    };
+                                    if !correct {
+                                        page.active_footer = if is_odd {
+                                            sec_f_odd.clone().or_else(|| sec_f_both.clone())
+                                        } else {
+                                            sec_f_even.clone().or_else(|| sec_f_both.clone())
                                         };
-                                        if !correct {
-                                            page.active_footer = if is_odd {
-                                                sec_f_odd.clone().or_else(|| sec_f_both.clone())
-                                            } else {
-                                                sec_f_even.clone().or_else(|| sec_f_both.clone())
-                                            };
-                                        }
                                     }
                                 }
                             }
