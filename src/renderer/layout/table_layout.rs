@@ -1,5 +1,7 @@
 //! 표 레이아웃 (layout_table + 셀 높이/줄범위 계산)
 
+mod stored_column_boundaries;
+
 use super::super::composer::{compose_paragraph, ComposedLine, ComposedParagraph};
 use super::super::height_measurer::MeasuredTable;
 use super::super::page_layout::LayoutRect;
@@ -1562,6 +1564,33 @@ impl LayoutEngine {
         for c in 0..col_count {
             if col_widths[c] <= 0.0 {
                 col_widths[c] = hwpunit_to_px(1800, self.dpi);
+            }
+        }
+
+        // 4단계: 위 해석이 저장 칸 폭과 모순되면(병합 제약 균등 분배가 다른 행의 칸이
+        // 정한 경계를 덮어쓴 경우) 행별 칸 폭 누적으로 푼 열 경계로 바꾼다.
+        // [백포트 edwardkim/rhwp#7934] 이 버전은 병합 제약에서 칸 간격을 빼지 않아 devel 과
+        // 열 폭의 의미가 다르므로, 두 해석이 일치하는 칸 간격 0 인 표에만 적용한다.
+        if table.cell_spacing == 0 {
+            let excluded_rows: std::collections::BTreeSet<u16> = table
+                .local_resize_rows
+                .iter()
+                .chain(inferred_local_resize_rows.iter())
+                .copied()
+                .collect();
+            let constraints = stored_column_boundaries::StoredCellSpans::collect(
+                table,
+                col_count,
+                &excluded_rows,
+                self.dpi,
+                1.0,
+            );
+            if let Some(constraints) = constraints {
+                if !constraints.satisfied_by(&col_widths) {
+                    if let Some(solved) = constraints.solve() {
+                        col_widths = solved;
+                    }
+                }
             }
         }
         let target_width = if table.common.width > 0 {
