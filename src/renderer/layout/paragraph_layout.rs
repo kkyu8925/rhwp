@@ -3337,8 +3337,23 @@ impl LayoutEngine {
                 .iter()
                 .map(|r| r.text.chars().filter(|c| *c != '\t').count())
                 .sum();
-            let suppress_cell_overflow_spacing =
-                cell_ctx.is_some() && total_text_width > available_width * 1.15;
+            // [#6196] 저장 줄 1개가 셀 안쪽 폭에 맞춰 저장됐으면 한글이 이 내용을 이 폭에
+            // 1줄로 담았다는 증거다. 대체 글꼴로 잰 폭이 ×1.15 를 넘어도 압축을 끄지 않고
+            // 칸 안에 맞춘다 — 끄면 셀 경계에서 잘린다.
+            let stored_single_line_fits_cell = cell_ctx.is_some()
+                && composed.lines.len() == 1
+                && para.is_some_and(|p| {
+                    p.line_segs.len() == 1
+                        && p.line_segs[0].tag
+                            & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                            == 0
+                        && (hwpunit_to_px(p.line_segs[0].segment_width, self.dpi) - available_width)
+                            .abs()
+                            <= 2.0
+                });
+            let suppress_cell_overflow_spacing = cell_ctx.is_some()
+                && total_text_width > available_width * 1.15
+                && !stored_single_line_fits_cell;
 
             let (extra_word_sp, extra_char_sp, extra_dash_sp) = compute_line_extra_spacing(
                 comp_line,
