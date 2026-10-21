@@ -1858,6 +1858,7 @@ fn is_fullwidth_symbol(c: char) -> bool {
     || ('\u{3200}'..='\u{32FF}').contains(&c) // Enclosed CJK Letters (㉠㉡ 등)
     || ('\u{3300}'..='\u{33FF}').contains(&c) // CJK Compatibility (㎜㎝ 등)
     || ('\u{2160}'..='\u{217F}').contains(&c) // Roman Numerals (Ⅰ Ⅱ Ⅲ 등)
+    || ('\u{2100}'..='\u{214F}').contains(&c) // Letterlike Symbols (℃ ℉ № ™ 등)
 }
 
 /// 한글 자모 초성 여부 (옛한글 포함)
