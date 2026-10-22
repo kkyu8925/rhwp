@@ -3078,51 +3078,64 @@ impl DocumentCore {
             // (짝수 페이지가 없어도 Even 머리말이 다음 구역에 상속되어야 함)
             {
                 use crate::model::header_footer::HeaderFooterApply as HFA;
+                let mut entries: Vec<(usize, HeaderFooterRef, bool, HFA)> = Vec::new();
                 for (pi, para) in section.paragraphs.iter().enumerate() {
                     for (ci, ctrl) in para.controls.iter().enumerate() {
                         match ctrl {
                             Control::Header(h) => {
-                                let r = HeaderFooterRef {
-                                    para_index: pi,
-                                    control_index: ci,
-                                    source_section_index: idx,
-                                    table_path: Vec::new(),
-                                };
-                                match h.apply_to {
-                                    HFA::Both => {
-                                        carry_header_odd = Some(r.clone());
-                                        carry_header_even = Some(r);
-                                    }
-                                    HFA::Odd => {
-                                        carry_header_odd = Some(r);
-                                    }
-                                    HFA::Even => {
-                                        carry_header_even = Some(r);
-                                    }
-                                }
+                                entries.push((
+                                    pi,
+                                    HeaderFooterRef {
+                                        para_index: pi,
+                                        control_index: ci,
+                                        source_section_index: idx,
+                                        table_path: Vec::new(),
+                                    },
+                                    true,
+                                    h.apply_to,
+                                ));
                             }
                             Control::Footer(f) => {
-                                let r = HeaderFooterRef {
-                                    para_index: pi,
-                                    control_index: ci,
-                                    source_section_index: idx,
-                                    table_path: Vec::new(),
-                                };
-                                match f.apply_to {
-                                    HFA::Both => {
-                                        carry_footer_odd = Some(r.clone());
-                                        carry_footer_even = Some(r);
-                                    }
-                                    HFA::Odd => {
-                                        carry_footer_odd = Some(r);
-                                    }
-                                    HFA::Even => {
-                                        carry_footer_even = Some(r);
-                                    }
-                                }
+                                entries.push((
+                                    pi,
+                                    HeaderFooterRef {
+                                        para_index: pi,
+                                        control_index: ci,
+                                        source_section_index: idx,
+                                        table_path: Vec::new(),
+                                    },
+                                    false,
+                                    f.apply_to,
+                                ));
+                            }
+                            Control::Table(table) => {
+                                crate::renderer::pagination::collect_nested_header_footer_controls(
+                                    table,
+                                    pi,
+                                    idx,
+                                    ci,
+                                    &[],
+                                    &mut entries,
+                                );
                             }
                             _ => {}
                         }
+                    }
+                }
+
+                for (_, reference, is_header, apply_to) in entries {
+                    let (odd, even) = if is_header {
+                        (&mut carry_header_odd, &mut carry_header_even)
+                    } else {
+                        (&mut carry_footer_odd, &mut carry_footer_even)
+                    };
+                    match apply_to {
+                        HFA::Both => {
+                            *odd = Some(reference.clone());
+                            *even = Some(reference);
+                        }
+                        HFA::Odd => *odd = Some(reference),
+                        HFA::Even => *even = Some(reference),
                     }
                 }
             }
